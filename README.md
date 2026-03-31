@@ -1,60 +1,78 @@
-# WEAP-Entry-Sim
-This repository contains a 3D simulation, built with the Ursina engine in Python,
-# Alcubierre–Burgess Warp Entry Demo (Ursina)
+from ursina import *
+import random
 
-This repository contains a small Ursina-based visualization of a warp jump from rest to effective warp speed using an Alcubierre–Burgess style coefficient. The simulation implements a three-phase “press SPACE to enter warp” sequence to make the warp-entry event (the “blip”) visually explicit.
+# --- ALCUBIERRE-BURGESS COEFFICIENT SIMULATION ---
+# This script simulates a warp jump from rest to warp speed.
+# Press 'SPACE' to engage.
 
-## What this script does
+app = Ursina()
 
-The script sets up:
-- A grid and starfield so motion and depth are visible.
-- A simple ship entity with an engine glow.
-- A three-phase warp sequence triggered with the SPACE key:
+# 1. THE ENVIRONMENT (Grid and Stars to see movement)
+# We need reference points in space to see the "Blip"
+for i in range(20):
+    Entity(model=Grid(50, 50), rotation_x=90, y=-5, z=i*50, color=color.dark_gray)
 
-1. **Phase 1 – Charge (rest / bubble formation)**  
-   The ship vibrates with growing amplitude while staying effectively at rest, and the engine glow slowly expands. This represents the warp bubble charging up.
+# Starfield effect for depth
+stars = [Entity(model='sphere', scale=.1, position=(random.uniform(-50,50), random.uniform(-20,20), random.uniform(0, 1000)), color=color.white) for _ in range(200)]
 
-2. **Phase 2 – Blip (snap / warp entry)**  
-   For a brief interval the effective speed jumps to several times the target warp speed, the ship stretches strongly along its travel axis, the camera field-of-view widens, and a short camera shake is applied. This visualizes the “blip” moment where the Alcubierre–Burgess coefficient crosses its critical value.
+# 2. THE SHIP (Alcubierre Drive Vessel)
+ship = Entity(model='cube', color=color.cyan, scale=(1.5, 0.7, 3), position=(0,0,0))
+engine_glow = Entity(parent=ship, model='sphere', color=color.azure, scale=(1.2, 0.5, 0.5), z=-1.5)
 
-3. **Phase 3 – Sustained warp**  
-   The ship settles into a moderately stretched cruising shape at a constant target warp speed, with the camera smoothly trailing the vessel and the FOV relaxing back toward normal.
+# 3. WARP PARAMETERS
+target_warp_speed = 600.0
+current_speed = 0.0
+charge_timer = 0.0
+is_warping = False
 
-## Controls
+def input(key):
+    global is_warping, charge_timer
+    if key == 'space':
+        is_warping = True
+        charge_timer = 0.0
+        print("Alcubierre Drive: Charging Burgess Coefficient...")
 
-- `SPACE`: Engage warp (starts the charge → blip → sustained warp sequence).
+def update():
+    global current_speed, charge_timer, is_warping
+    
+    if is_warping:
+        charge_timer += time.dt
+        
+        # PHASE 1: THE CHARGE (The "Rest" phase)
+        if charge_timer < 1.8:
+            # Physical vibration as the bubble forms
+            shake_amt = (charge_timer / 1.8) ** 3 * 0.3
+            ship.x = random.uniform(-shake_amt, shake_amt)
+            ship.y = random.uniform(-shake_amt, shake_amt)
+            current_speed = 0
+            engine_glow.scale += Vec3(0.01, 0.01, 0.01) # Glow grows
+            
+        # PHASE 2: THE BLIP (The "Snap" phase)
+        elif charge_timer < 2.0:
+            # Massive speed spike and visual distortion
+            current_speed = target_warp_speed * 3.0 
+            ship.scale_z = 25.0 # The "Stretch"
+            camera.shake(duration=0.1, magnitude=3)
+            camera.fov = 120 # FOV stretch for speed perception
+            
+        # PHASE 3: SUSTAINED WARP
+        else:
+            current_speed = target_warp_speed
+            ship.scale_z = 6.0 # Settle into a stretched cruising shape
+            camera.fov = lerp(camera.fov, 90, time.dt * 2)
+            ship.x = 0
+            ship.y = 0
 
-The camera automatically follows the ship and stays locked on during the entire evolution.
+        # Apply velocity to Z position
+        ship.z += current_speed * time.dt
+        
+        # Camera follows smoothly
+        camera.position = lerp(camera.position, ship.position + Vec3(0, 8, -25), time.dt * 5)
+        camera.look_at(ship)
 
-## Requirements
+# Setup Camera
+camera.position = (0, 8, -25)
+Sky()
 
-- Python 3.9+ (tested version may vary)
-- [Ursina Engine](https://www.ursinaengine.org/)
-
-Install Ursina via:
-
-```bash
-pip install ursina
-```
-
-## Running the demo
-
-Clone the repository and run the script:
-
-```bash
-git clone https://github.com/<your-user>/<your-repo>.git
-cd <your-repo>
-python warp_entry_ursina.py
-```
-
-(Replace `warp_entry_ursina.py` with the actual filename if different.)
-
-## Relation to the theory
-
-This demo is a toy visualization of a warp jump in an emergent-medium warp framework, where:
-- Phase 1 corresponds to the build-up of the warp field/bubble.
-- Phase 2 corresponds to the critical “blip” at warp entry (e.g. the warp entropy apex point).
-- Phase 3 represents a steady-state warp trajectory after the transition.
-
-It is intended as an intuitive companion to the underlying theoretical work, not a full numerical solution of the Einstein field equations.
- “The WEAP transition is the brief Blip phase where the WEAP coefficient crosses its critical value, shown as a sharp spike in effective velocity, ship stretch, and camera distortion between 1.8–2.0 s.”
+print("Instructions: Press SPACE to engage warp.")
+app.run()
